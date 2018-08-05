@@ -1,0 +1,618 @@
+White Wine Quality Exploration 
+========================================================
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, packages}
+
+
+library(ggplot2)
+library(dplyr)
+library(GGally)
+library(reshape2)
+library(gridExtra)
+library(memisc)
+
+
+```
+```{r echo=FALSE, Load_the_Data}
+# Load the Data
+pf<-read.csv('wineQualityWhites.csv')
+```
+
+# Univariate Plots Section
+
+
+```{r echo=FALSE, Univariate_Plots}
+dim(pf)
+summary(pf)
+```
+Our data consists of 13 variables, with nearly 5000 observations.
+
+At first I would like to see the distribuiton of quality
+```{r echo=FALSE}
+ggplot(aes(x=quality),data=pf)+
+  geom_histogram(binwidth = 1)+
+  labs(title="Wind Quality Level Distributuion")
+fig.width=400
+fig.height=400
+```
+
+Here we can see most of the wine have quality between 5-7, let's look more 
+histogram for other properties.
+After reading the document of this dataset,I'll also create a new varabile called non.free.sulfur.dioxide by using total.sulfur.dioxide minus free.sulfur.dioxide
+```{r echo=FALSE}
+#plotting each variables with proper bin size
+pf$non.free.sulfur.dioxide<-pf$total.sulfur.dioxide-pf$free.sulfur.dioxide
+
+
+p1 <-ggplot(aes(x=fixed.acidity),data=pf)+
+  geom_histogram(binwidth = 0.1)+
+  xlab("Fixed Acidity g/dm^3")
+
+p2 <- ggplot(aes(x=volatile.acidity),data=pf)+
+  geom_histogram(binwidth = 0.01)+
+  xlab("Volatile Acidity g/dm^3")
+
+p3 <- ggplot(aes(x=citric.acid),data=pf)+
+  geom_histogram(binwidth = 0.01)+
+  xlab("Citric Acid g/dm^3")
+
+p4 <- ggplot(aes(x=residual.sugar),data=pf)+
+  geom_histogram(binwidth = 0.1)+
+  xlab("Residual Sugar g/dm^3")
+
+p5 <- ggplot(aes(x=chlorides),data=pf)+
+  geom_histogram(binwidth = 0.005)+
+  xlab("Chlorides g/dm^3")
+
+p6 <- ggplot(aes(x=free.sulfur.dioxide),data=pf)+
+  geom_histogram(binwidth = 1)+
+  xlab("Total Sulfur Dioxide mg/dm^3")
+
+p7 <- ggplot(aes(x=total.sulfur.dioxide),data=pf)+
+  geom_histogram(binwidth = 1)+
+  xlab("Total Sulfur Dioxide mg/dm^3")
+
+p8 <- ggplot(aes(x=density),data=pf)+
+  geom_histogram(binwidth = 0.001)+
+  xlab("Density g/cm^3")
+
+p9 <- ggplot(aes(x=pH),data=pf)+
+  geom_histogram(binwidth = 0.01)+
+  xlab("pH")
+
+p10 <- ggplot(aes(x=sulphates),data=pf)+
+  geom_histogram(binwidth = 0.01)+
+  xlab("Sulphates g/dm^3")
+
+p11 <- ggplot(aes(x=alcohol),data=pf)+
+  geom_histogram(binwidth = 0.2)+
+  xlab("Alcohol % by volumn")
+
+p12 <- ggplot(aes(x=non.free.sulfur.dioxide),data=pf)+
+  geom_histogram(binwidth = 1)+
+  xlab("Non Free Sulfur Dioxide")
+#Show all plot in one display
+grid.arrange(p1,p2,p3,p4,p5,p6,p7,p8,p9,p10,p11,p12, top="All Variable Distribution")
+
+```
+
+From the histogram, the residual.sugar value we need to using log scale to transform it, since
+the plot is heavyly screwed and hard to see with the long tail.
+
+```{r echo=FALSE}
+ggplot(aes(x = residual.sugar),data=pf)+scale_x_log10()+geom_histogram(binwidth = 0.05)
+xlab("Residual Sugar 10^g/dm^3")
+```
+
+Now the residual.sugar histogram do have 2 peaks appears to be bimodal as a mixture of 2 normal distribution.
+
+Look closely on other plot, such us dencity & chlorides, I can see there's outliers that will need to be filtered out.
+
+We can do a boxplot to see set the percentile
+
+```{r echo=FALSE}
+b1 <- ggplot(aes("",fixed.acidity),data=pf)+geom_boxplot()
+
+b2 <- ggplot(aes("",volatile.acidity),data=pf)+geom_boxplot()
+
+b3 <- ggplot(aes("",citric.acid),data=pf)+geom_boxplot()
+
+b4 <- ggplot(aes("",residual.sugar),data=pf)+geom_boxplot()
+
+b5 <- ggplot(aes("",chlorides),data=pf)+geom_boxplot()
+
+b6 <- ggplot(aes("",free.sulfur.dioxide),data=pf)+geom_boxplot()
+
+b7 <- ggplot(aes("",total.sulfur.dioxide),data=pf)+geom_boxplot()
+
+b8 <- ggplot(aes("",density),data=pf)+geom_boxplot()
+
+b9 <- ggplot(aes("",pH),data=pf,y=quality)+geom_boxplot()
+
+b10 <- ggplot(aes("",sulphates),data=pf)+geom_boxplot()
+
+b11 <- ggplot(aes("",alcohol),data=pf)+geom_boxplot()
+
+b12 <- ggplot(aes("",non.free.sulfur.dioxide),data=pf)+geom_boxplot()
+
+grid.arrange(b1,b2,b3,b4,b5,b6,b7,b8,b9,b10,b11,b12,top="All Variable Boxplot")
+```
+
+From this boxplot, I can see that volatile.acidity & choride have the most outliers here, also for residule.sugar & density there's not much outlier but it all located faraway I'll remove the top 1% and bottom 0.5 percentile of the data from these 4 attributes.
+
+```{r echo=FALSE}
+thre_1 <- quantile(pf$volatile.acidity,c(0.005,0.99))
+
+thre_2 <- quantile(pf$chlorides,c(0.005,0.99))
+
+thre_3 <- quantile(pf$residual.sugar,c(0.005,0.99))
+
+thre_4 <- quantile(pf$density,c(0.005,0.99))
+
+pf <- pf[pf$volatile.acidity>=thre_1[1]& pf$volatile.acidity<=thre_1[2],]
+
+pf <- pf[pf$chlorides>=thre_2[1]& pf$chlorides<=thre_2[2],]
+
+pf <- pf[pf$residual.sugar>=thre_3[1]& pf$residual.sugar<=thre_3[2],]
+
+pf <- pf[pf$density>=thre_4[1]& pf$density<=thre_4[2],]
+
+dim(pf)
+```
+We remained 4660 entry out of 4898 and which have no big impact on entire dataset.
+
+Here's the histogram plot after removing outliers and with proper transformation.
+```{r echo=FALSE, warning = FALSE}
+p1 <- ggplot(aes(x=fixed.acidity),data=pf)+
+  xlim(quantile(pf$fixed.acidity,c(0.005,0.99)))+
+  xlab("Fixed Acidity g/dm^3")+
+  geom_histogram(binwidth = 0.1)+
+  geom_vline(aes(xintercept = mean(pf$fixed.acidity)),col='red',size=1,linetype="dashed")+
+  geom_vline(aes(xintercept = median(pf$fixed.acidity)),col='green',size=1)
+
+p2 <- ggplot(aes(x=volatile.acidity),data=pf)+
+  xlim(quantile(pf$volatile.acidity,c(0.000,0.95)))+
+  xlab("Volatile Acidity g/dm^3")+
+  geom_histogram(binwidth = 0.01)+
+  geom_vline(aes(xintercept = mean(pf$volatile.acidity)),col='red',size=1,linetype="dashed")+
+  geom_vline(aes(xintercept = median(pf$volatile.acidity)),col='green',size=1)
+
+p3 <- ggplot(aes(x=citric.acid),data=pf)+
+  xlim(quantile(pf$citric.acid,c(0.005,0.99)))+
+  xlab("Citric Acid g/dm^3")+
+  geom_histogram(binwidth = 0.01)+
+  geom_vline(aes(xintercept = mean(pf$citric.acid)),col='red',size=1,linetype="dashed")+
+  geom_vline(aes(xintercept = median(pf$citric.acid)),col='green',size=1)
+
+p4 <- ggplot(aes(x = residual.sugar),data=pf) +
+  scale_x_log10() +
+  xlab("Residual Sugar g/dm^3") +
+  geom_histogram(binwidth = 0.05) +
+  geom_vline(aes(xintercept = mean(pf$residual.sugar)),col='red',size=1,linetype="dashed")+
+  geom_vline(aes(xintercept = median(pf$residual.sugar)),col='green',size=1)
+
+p5 <- ggplot(aes(x=chlorides),data=pf)+
+  xlim(quantile(pf$chlorides,c(0.005,0.95)))+
+  xlab("Chlorides g/dm^3")+
+  geom_histogram(binwidth = 0.001)+
+  geom_vline(aes(xintercept = mean(pf$chlorides)),col='red',size=1,linetype="dashed")+
+  geom_vline(aes(xintercept = median(pf$chlorides)),col='green',size=1)
+
+p6 <- ggplot(aes(x=free.sulfur.dioxide),data=pf)+
+  xlim(quantile(pf$free.sulfur.dioxide,c(0.005,0.99)))+
+  xlab("Free Sulfur Dioxide mg/dm^3")+
+  geom_histogram(binwidth = 1)+
+  geom_vline(aes(xintercept = mean(pf$free.sulfur.dioxide)),col='red',size=1,linetype="dashed")+
+  geom_vline(aes(xintercept = median(pf$free.sulfur.dioxide)),col='green',size=1)
+
+p7 <- ggplot(aes(x=total.sulfur.dioxide),data=pf)+
+  xlim(quantile(pf$total.sulfur.dioxide,c(0.005,0.99)))+
+  xlab("Total Sulfur Dioxide mg/dm^3")+
+  geom_histogram(binwidth = 3)+
+  geom_vline(aes(xintercept = mean(pf$total.sulfur.dioxide)),col='red',size=1,linetype="dashed")+
+  geom_vline(aes(xintercept = median(pf$total.sulfur.dioxide)),col='green',size=1)
+
+
+p8 <- ggplot(aes(x=density),data=pf)+
+  xlab("Density g/cm^3")+
+  geom_histogram(binwidth = 0.0005)+
+  geom_vline(aes(xintercept = mean(pf$density)),col='red',size=1,linetype="dashed")+
+  geom_vline(aes(xintercept = median(pf$density)),col='green',size=1)
+
+
+p9 <- ggplot(aes(x=pH),data=pf)+
+  xlim(quantile(pf$pH,c(0.005,0.99)))+
+  xlab("pH")+
+  geom_histogram(binwidth = 0.01)+
+  geom_vline(aes(xintercept = mean(pf$pH)),col='red',size=1,linetype="dashed")+
+  geom_vline(aes(xintercept = median(pf$pH)),col='green',size=1)
+
+
+p10 <- ggplot(aes(x=sulphates),data=pf)+
+  xlim(quantile(pf$sulphates,c(0.005,0.99)))+
+  xlab("Sulphates g/dm^3")+
+  geom_histogram(binwidth = 0.01)+
+  geom_vline(aes(xintercept = mean(pf$sulphates)),col='red',size=1,linetype="dashed")+
+  geom_vline(aes(xintercept = median(pf$sulphates)),col='green',size=1)
+
+
+p11 <- ggplot(aes(x=alcohol),data=pf)+
+  xlab("Alcohol % by volumn")+
+  geom_histogram(binwidth = 0.2)+
+  geom_vline(aes(xintercept = mean(pf$alcohol)),col='red',size=1,linetype="dashed")+
+  geom_vline(aes(xintercept = median(pf$alcohol)),col='green',size=1)
+
+p12 <- ggplot(aes(x=non.free.sulfur.dioxide),data=pf)+
+  xlim(quantile(pf$non.free.sulfur.dioxide,c(0.005,0.99)))+
+  xlab("Non Free Sulfur Dioxide")+
+  geom_histogram(binwidth = 1)+
+  geom_vline(aes(xintercept = mean(pf$non.free.sulfur.dioxide)),col='red',size=1,linetype="dashed")+
+  geom_vline(aes(xintercept = median(pf$non.free.sulfur.dioxide)),col='green',size=1)
+
+#Show all plot in one display
+grid.arrange(p1,p2,p3,p4)
+```
+
+From the first 4 plot we can see that Fixed Acidity majority, Volatile Acidity and Crtric Acid all shows normal distribution.
+
+The median value for these three attibutes are 6.8, 0.26, 0.32 g/dm^3
+
+As for the Residual Sugar, it have a long right tail and after log scale transformation it shows bimodal distribution
+
+```{r echo=FALSE, warning = FALSE}
+grid.arrange(p5,p6,p7,p8)
+```
+
+Here's another 4 plot for Chlorides, Free Sulfur Dioxide, Total Sulfur Dioxide and Density, all of these 4 plot follows normal distribution.
+
+```{r echo=FALSE, warning = FALSE}
+grid.arrange(p9,p10,p11,p12)
+```
+
+For the last 4 plot, we have pH, Sulphates, Alcohol and Non Free Sulfur Dioxde, the Alcohol have a right tail and rest property all have normal distributuion.
+
+# Univariate Analysis
+
+### What is the structure of your dataset
+
+This data set constructed 4898 observation of 13 white wine properties.
+
+In these 13 wine properties, 11 of them are quantitative and 1 is ordered factor(quality).
+
+From the quality histogram I can see that even its rated from 0-10, but this dataset only having wine with quality
+
+from 3-9 with a median 6 and 95% falls into 5-7
+
+Since most value are greater than 0 there's few plot have skewness in it. 
+
+
+### What is/are the main feature(s) of interest in your dataset?
+
+In this dataset I'm more interested in which variable have most influence on quality.
+
+
+### What other features in the dataset do you think will help support your \
+investigation into your feature(s) of interest?
+
+Any of these variable can have some correlation with quality, in this case I'm interested in residual.sugar & alcohol
+### Did you create any new variables from existing variables in the dataset?
+
+No I didn't create any new, I found one non.free.sulfur.dioxide just extract from total.sulfur.dioxide
+
+### Of the features you investigated, were there any unusual distributions? \
+
+Yes, for the residual.sugar varible it's heavy screwed to the left, and I need to do a log scale trasformation.
+
+# Bivariate Plots Section
+
+
+```{r echo=FALSE, Bivariate_Plots}
+pf$X<-NULL
+ggcorr(pf,label=TRUE,size=2,label_size = 3,label_round = 2,legend.size = 8)
+fig.width = 1200
+fig.height = 1200
+```
+
+
+I just quickly plot the correlation between each variable using ggcorr function.
+
+Take a quick peek on the quality column, I have found these 3 varibles have the most positive/negetive correcaltion
+
+  1.Alcohol: 0.44
+  
+  2.Density: -0.316
+  
+  3.Chlorides: -0.24
+  
+All of them are not strong I need to have more plot to dig further.
+Now I'm doing a jitter plot for each of these variable with quality
+
+```{r echo=FALSE, warning = FALSE}
+s1 <- ggplot(aes(x = alcohol, y = quality), data = pf) +
+  geom_jitter(alpha = 1/10)+
+  xlab("Alcohol % by volumn")
+
+s2 <- ggplot(aes(x = density, y = quality), data = pf) +
+  geom_jitter(alpha = 1/10)+
+  xlab("Density g/cm^3")
+
+s3 <- ggplot(aes(x = chlorides, y = quality), data = pf) +
+  geom_jitter(alpha = 1/10)+
+  xlab("Chlorides g/dm^3")
+
+grid.arrange(s1,s2,s3,top="Quallity Relative Variable Jitter Plot")
+```
+
+There's still outliers on chlorides this case I'll limit x-scale
+
+```{r echo=FALSE, warning = FALSE}
+s3 <- s3+xlim(quantile(pf$chlorides, 0.01),
+       quantile(pf$chlorides, 0.98))
+grid.arrange(s1,s2,s3,top="Quallity Relative Variable Jitter Plot")
+
+```
+
+From this plot, there's clear upward trend in alcohol/quality, not that clear downtrend on density/quality & chlorides/quality.
+
+Adding a liner model to the jitter plot here
+
+```{r echo=FALSE, warning = FALSE}
+
+s1 <- s1 + geom_smooth(method = 'lm', color = 'blue')
+
+s2 <- s2 + geom_smooth(method = 'lm', color = 'green')
+
+s3 <- s3 + geom_smooth(method = 'lm', color = 'red')
+
+grid.arrange(s1,s2,s3,top="Quallity Relative Variable Jitter Plot with Linear Fit")
+```
+
+These line overall reprensented the trend here that the higher alcohol volumn have higher quality level, the higher density have a lower quality and the higher chlorides also results to a lower quality level.
+
+
+Also, besides the feature we interested in, we can also see some other releationshp between other attributes from the ggpair plot.
+
+  1. Density/Residual.Sugar: 0.825 
+  2. Total.Sulfur.Dioxide/Non.Free.Sulfur.Dioxide: 0.92
+  3. Density/Alcohol: -0.806
+  
+I'll also using scatter point plot to investigate these varibles.
+
+```{r echo=FALSE, warning = FALSE}
+d1 <- ggplot(aes(x = residual.sugar, y = density), data = pf) +
+  geom_point(alpha = 1/10)+ geom_smooth(method = 'lm', color = 'blue')+
+  xlab("Residual Sugar g/dm^3")+
+  ylab("Density g/cm^3")
+
+d2 <- ggplot(aes(x = non.free.sulfur.dioxide, y = total.sulfur.dioxide), data = pf) +
+  geom_point(alpha = 1/10)+ geom_smooth(method = 'lm', color = 'green')+
+  xlab("Non Free Sulfur Dioxide mg/dm^3")+
+  ylab("Total Sulfur Dioxide mg/dm^3")
+
+d3 <- ggplot(aes(x = alcohol, y = density), data = pf) +
+  geom_point(alpha = 1/10)+ geom_smooth(method = 'lm', color = 'red')+
+  xlab("Alcohol %Volumn")+
+  ylab("Density g/cm^3")
+
+grid.arrange(d1,d2,d3)
+```
+
+Here we can see since there's very strong correlations, the line fit very well here.
+Higher residual suglar result higher density, higher alcohol volumn leads to lower density, and as for non free sulfur dioxide it's a part of total sulfur dioxide so it's shows positive correlation.
+
+
+# Bivariate Analysis
+
+
+### Talk about some of the relationships you observed in this part of the \
+investigation. How did the feature(s) of interest vary with other features in \
+the dataset?
+
+
+From the plot I have aboive, the quality varible is correlated with alcohol & density & chlorides.
+As alcohol level increase, the quality level also trending upwards, while density & chlorides increasing, the quality trending downwards.
+However the correlation between these variable is not strong enough to fit into a linear model as I tried above
+
+
+### Did you observe any interesting relationships between the other features \
+
+I found that alcohol & density have a strong negetive correlation, while alcohol increasing, then density trending downwards, this is also reflected in the quality plot.
+
+Also the residual.sugar have strong positive correlation with density, this is very reasonable since sugar (1.59 g/cm³) in general have a bigger density than water(1 g/cm³) & ethanol (0.79 g/cm³), hence more sugar left the the bigger density the wine will have.
+
+### What was the strongest relationship you found?
+
+The strongest correlation I found will be non.free.sulfur.dioxide & total.sulfur.dioxide, this is due to one variable is a subset of another, so it will always be a very strong correlation.
+
+# Multivariate Plots Section
+
+Here I'll try to seperate quality into bigger bucket as bad/normal/good by seperating buckets,
+
+Also as I learned before the residual.sugar is bimodal, seperating as low/high by median value. 
+
+```{r echo=FALSE, Multivariate_Plots, warning = FALSE}
+pf$quality.bucket <- 
+  with(pf, cut(pf$quality, breaks = c(2,5,7,10),ordered = TRUE))
+
+pf$residual.sugar.bucket<-
+  with(pf, cut(residual.sugar, breaks = c(0.7,5.2,18.9), ordered = TRUE))
+
+
+g1 <- ggplot(aes(x = alcohol, y = density,group=quality.bucket,color=quality.bucket), data = pf) +
+  geom_jitter(aes(color = quality.bucket))+
+  scale_fill_brewer()+
+  geom_smooth(aes(group=pf$quality.bucket),method="lm",se=FALSE)+
+  xlab("Alcohol %Volumn")+
+  ylab("Density g/cm^3")+
+  labs(subtitle="Plot#1")
+
+g2 <- ggplot(aes(x = alcohol, y = chlorides,group=quality.bucket,color=quality.bucket), data = pf) +
+  geom_jitter(aes(color = quality.bucket)) +
+  scale_fill_brewer()+
+  geom_smooth(aes(group=pf$quality.bucket),method="lm",se=FALSE)+
+  ylim(quantile(pf$chlorides, 0.01),quantile(pf$chlorides, 0.99))+
+  xlab("Alcohol %Volumn")+
+  ylab("Chlorides g/dm^3")+
+  labs(subtitle="Plot#2")
+
+g3 <- ggplot(aes(x = residual.sugar, y = density,group=quality.bucket,color=quality.bucket), data = pf) +
+  geom_jitter(aes(color = quality.bucket))+
+  scale_fill_brewer()+
+  geom_smooth(aes(group=pf$quality.bucket),method="lm",se=FALSE)+
+  xlab("Residual Sugar g/dm^3")+
+  ylab("Density g/cm^3")+
+  labs(subtitle="Plot#3")
+
+g4 <- ggplot(aes(x = chlorides, y = density,group=quality.bucket,color=quality.bucket), data = pf) +
+  geom_jitter(aes(color = quality.bucket))+
+  scale_fill_brewer()+
+  geom_smooth(aes(group=pf$quality.bucket),method="lm",se=FALSE)+
+  xlim(quantile(pf$chlorides, 0.01),quantile(pf$chlorides, 0.99))+
+  xlab("Chlorides g/dm^3")+
+  ylab("Density g/cm^3")+
+  labs(subtitle="Plot#4")
+
+grid.arrange(g1,g2,g3,g4)
+```
+
+In this set of plot, it's clearly shows the releationship between each 3 variables,
+Plot#1 as alcohol level increase, the quality also increasing and density dropped.
+Plot#2 here I can see the "bad" grade mostly associate wiht higher chlorides and the "good" wine have a lower chlorides.
+Plot#3 shows that "good" grade wine will have a smaller density & residual.sugar amount.
+
+```{r echo=FALSE, warning = FALSE}
+
+k1 <- ggplot(aes(x = alcohol, y = density,group=residual.sugar.bucket,colour=residual.sugar.bucket), data = pf) +
+  geom_jitter(aes(color = residual.sugar.bucket))+
+  scale_fill_brewer()+
+  geom_smooth(aes(group=pf$residual.sugar.bucket),method="lm",se=FALSE)+
+  xlab("Alcohol %Volumn")+
+  ylab("Density g/cm^3")+
+  labs(subtitle="Plot#1")
+
+k2 <- ggplot(aes(x = chlorides, y = density,group=residual.sugar.bucket,colour=residual.sugar.bucket), data = pf) +
+  geom_jitter(aes(color = residual.sugar.bucket))+
+  scale_fill_brewer()+
+  geom_smooth(aes(group=pf$residual.sugar.bucket),method="lm",se=FALSE)+
+  xlab("Chlorides g/dm^3")+
+  ylab("Density g/cm^3")+
+  labs(subtitle="Plot#2")
+
+k3 <- ggplot(aes(x = alcohol, y = chlorides,group=residual.sugar.bucket,colour=residual.sugar.bucket), data = pf) +
+  geom_jitter(aes(color = residual.sugar.bucket))+
+  scale_fill_brewer()+
+  geom_smooth(aes(group=pf$residual.sugar.bucket),method="lm",se=FALSE)+
+  xlab("Alcohol %Volumn")+
+  ylab("Chlorides g/dm^3")+
+  labs(subtitle="Plot#3")
+
+grid.arrange(k1,k2,k3)
+```
+
+This set of plot shows the relationship of the core 3 variable with residual.sugar.
+Higher residual.sugar have highr density and lower alcohol,lower chlorides, vise versa.
+
+Using lm function build liner model with the 3 big correlation variables:
+
+```{r echo=FALSE, warning = FALSE}
+
+m1 <- lm(quality~ alcohol, data = pf)
+m2 <- update(m1, ~ . + density)
+m3 <- update(m2, ~ . + chlorides)
+
+mtable(m1,m2,m3)
+
+```
+
+The R-squared value si really small to say this linear model is not significant enought to represent this dataset.
+
+# Multivariate Analysis
+
+### Talk about some of the relationships you observed in this part of the \
+investigation. Were there features that strengthened each other in terms of \
+looking at your feature(s) of interest?
+
+Yes, from more visulization, residual.sugar has become a feature that strengthened my understanding on alcohol & density,
+also I found that this relation is very consistant
+
+
+### Were there any interesting or surprising interactions between features?
+
+There's always a saying "the older the wine the better", which after investigate the dataset I believe this is refereing to the alcohol value.
+
+
+### OPTIONAL: Did you create any models with your dataset? Discuss the \
+strengths and limitations of your model.
+
+------
+
+I do try to fit this dataset into a liner model to predict the quality based on other attributes.
+
+However after checking the model parameter linear model is not the best way here, although it can reflects the overall trend but it's not acctrate for most time. I would like to see if we can have more indpendent features here in order to build a beter model.
+
+
+
+# Final Plots and Summary
+
+### Plot One
+```{r echo=FALSE, Plot_One, warning = FALSE}
+
+ggplot(aes(x = quality.bucket, y = alcohol), data = pf) +
+  geom_boxplot()+
+  xlab("Quality Levels")+
+  ylab("Alcohol %Volumn")+
+  labs(title="Quality vs Alcohol Boxplot")
+
+```
+
+### Description One
+This plot shows the main finding from my report, since alcohol as the varible have the strongest correclation to quality among other variables.
+
+In this box plot, by comparing median and also IQR we can see Over all as alcohol value increase the quality shows upward trend increase on levels.
+
+
+### Plot Two
+```{r echo=FALSE, Plot_Two}
+ggplot(aes(x = alcohol, y = density,group=quality.bucket,color=quality.bucket), data = pf) +
+  geom_jitter(aes(color = quality.bucket))+
+  scale_fill_brewer()+
+  geom_smooth(aes(group=pf$quality.bucket),method="lm",se=FALSE)+
+  xlab("Alcohol %Volumn")+
+  ylab("Density g/cm^3")+
+  labs(title="Alcohol vs Density by Quality Levels")
+
+```
+
+### Description Two
+This plot shows the relationship between density & alcohol & quality, as the alcohol value increasing, the density decreasing and quality also increasing. This plot is first time that we have 3 varible in 1 plot that we can see multivarable relation.
+
+
+### Plot Three
+
+```{r echo=FALSE, Plot_Three}
+ggplot(aes(x = alcohol, y = density,group=residual.sugar.bucket,colour=residual.sugar.bucket), data = pf) +
+  geom_jitter(aes(color = residual.sugar.bucket))+
+  scale_fill_brewer()+
+  geom_smooth(aes(group=pf$residual.sugar.bucket),method="lm",se=FALSE)+
+  xlab("Alcohol %Volumn")+
+  ylab("Density g/cm^3")+
+  labs(title="Alcohol vs Density by Residual Sugar Levels")
+
+```
+
+### Description Three
+Here's another plot with 3 varible, different from previous one, since we seperate residual.sugar in two bucket we're able to see the visulization directly. From this plot, with alcohol increasing the density decreased. However for hight residual.sugar will have higher density & lower alcohol value
+
+------
+
+# Reflection
+
+From this project, I learned how to do explory data analysis first time, from raw data,histogram,boxplot,changing axis to box plot, removing outlier and all the way to multi-variable plot. While during the process, I feel like it's really hard to find a perfect model for this dataset to predicting wine quality, none of these variable have a strong correlation directy. Also there's many variable to choose from and this make me feel a lot of uncertainty. Although I tried to fit it into a linear model but it's certainly not the best fit. I would hope if we have more variable avaialble to have direct or indirect releations. Also if quality is not discrete by numbers more like have decimal to 0.01 I feel like the plot will have better visuilization.There's also space to be improved here in this analysis as I can try to make new varible using exisitng one, to see if a better correlation existing.
+
+Overall I feel like doing real data analysing could be more harder, there's always be hidden relationship/variables that will need to be digged out so we can see the big picture, we will not always see obvious correlation all the time, this will need me to have a set of solution and step by step find every piece of the puzzle. I'm looking forward to do more practice like this through kaggle to get more famillar with the methodology.
+
+As for the future work I would like also introduce the red wine dataset into my analysis as a reference gruop to see if all wines have same property/characteristics between these 2 kinds. After introduce red wine data I can have an analysis side by side and overall enrich my dataset to have a better look to confirm the findings that I already found.
+
+
+
+
